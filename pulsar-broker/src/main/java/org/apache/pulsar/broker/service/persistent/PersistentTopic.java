@@ -150,6 +150,8 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
     @SuppressWarnings("unused")
     private volatile long usageCount = 0;
 
+    private final long backloggedCursorThresholdEntries;
+
     static final String DEDUPLICATION_CURSOR_NAME = "pulsar.dedup";
 
     private static final double MESSAGE_EXPIRY_THRESHOLD = 1.5;
@@ -215,6 +217,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
         USAGE_COUNT_UPDATER.set(this, 0);
         this.delayedDeliveryEnabled = brokerService.pulsar().getConfiguration().isDelayedDeliveryEnabled();
         this.delayedDeliveryTickTimeMillis = brokerService.pulsar().getConfiguration().getDelayedDeliveryTickTimeMillis();
+        this.backloggedCursorThresholdEntries = brokerService.pulsar().getConfiguration().getManagedLedgerCursorBackloggedThreshold();
 
         initializeDispatchRateLimiterIfNeeded(Optional.empty());
 
@@ -270,6 +273,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
         this.subscriptions = new ConcurrentOpenHashMap<>(16, 1);
         this.replicators = new ConcurrentOpenHashMap<>(16, 1);
         this.compactedTopic = new CompactedTopicImpl(brokerService.pulsar().getBookKeeperClient());
+        this.backloggedCursorThresholdEntries = 1000;
     }
 
     private void initializeDispatchRateLimiterIfNeeded(Optional<Policies> policies) {
@@ -589,7 +593,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
 
         subscriptionFuture.thenAccept(subscription -> {
             try {
-                ledger.checkBackloggedCursors();
+                checkBackloggedCursors();
 
                 Consumer consumer = new Consumer(subscription, subType, topic, consumerId, priorityLevel, consumerName,
                                                  maxUnackedMessages, cnx, cnx.getRole(), metadata, readCompacted, initialPosition, keySharedMeta);
@@ -1265,6 +1269,17 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
 
     public ManagedLedger getManagedLedger() {
         return ledger;
+    }
+
+    public void checkBackloggedCursors() {
+        subscriptions.forEach((subName, subscription) -> {
+            if (!subscription.getConsumers().isEmpty()
+                    && subscription.getCursor().getNumberOfEntries() < backloggedCursorThresholdEntries) {
+                subscription.getCursor().setActive();
+            } else {
+                subscription.getCursor().setInactive();
+            }
+        });
     }
 
     public void updateRates(NamespaceStats nsStats, NamespaceBundleStats bundleStats, StatsOutputStream topicStatsStream,
