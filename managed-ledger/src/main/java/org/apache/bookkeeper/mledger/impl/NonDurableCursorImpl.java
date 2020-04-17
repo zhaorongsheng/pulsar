@@ -93,24 +93,14 @@ public class NonDurableCursorImpl extends ManagedCursorImpl {
     }
 
     @Override
-    public void setActive() {
-        /// No-Op
-    }
-
-    @Override
-    public boolean isActive() {
-        return false;
-    }
-
-    @Override
-    public void setInactive() {
-        /// No-Op
-    }
-
-    @Override
     public void asyncClose(CloseCallback callback, Object ctx) {
-        // No-Op
-        callback.closeComplete(ctx);
+        State oldState = STATE_UPDATER.getAndSet(this, State.Closing);
+        if (oldState == State.Closed || oldState == State.Closing) {
+            log.info("[{}] [{}] State is already closed", ledger.getName(), getName());
+            callback.closeComplete(ctx);
+            return;
+        }
+        STATE_UPDATER.set(this, State.Closed);
     }
 
     public void asyncDeleteCursor(final String consumerName, final DeleteCursorCallback callback, final Object ctx) {
@@ -121,7 +111,7 @@ public class NonDurableCursorImpl extends ManagedCursorImpl {
     @Override
     public synchronized String toString() {
         return MoreObjects.toStringHelper(this).add("ledger", ledger.getName()).add("ackPos", markDeletePosition)
-                .add("readPos", readPosition).toString();
+                .add("readPos", readPosition).add("isActive", isActive()).add("isDurable", isDurable()).toString();
     }
 
     private static final Logger log = LoggerFactory.getLogger(NonDurableCursorImpl.class);
