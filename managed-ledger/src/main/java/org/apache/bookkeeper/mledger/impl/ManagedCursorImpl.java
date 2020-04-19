@@ -1847,8 +1847,7 @@ public class ManagedCursorImpl implements ManagedCursor {
     @Override
     public synchronized String toString() {
         return MoreObjects.toStringHelper(this).add("ledger", ledger.getName()).add("name", name)
-                .add("ackPos", markDeletePosition).add("readPos", readPosition)
-                .add("isActive", isActive()).add("isDurable", isDurable()).toString();
+                .add("ackPos", markDeletePosition).add("readPos", readPosition).toString();
     }
 
     @Override
