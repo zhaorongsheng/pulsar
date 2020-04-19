@@ -94,13 +94,8 @@ public class NonDurableCursorImpl extends ManagedCursorImpl {
 
     @Override
     public void asyncClose(CloseCallback callback, Object ctx) {
-        State oldState = STATE_UPDATER.getAndSet(this, State.Closing);
-        if (oldState == State.Closed || oldState == State.Closing) {
-            log.info("[{}] [{}] State is already closed", ledger.getName(), getName());
-            callback.closeComplete(ctx);
-            return;
-        }
-        STATE_UPDATER.set(this, State.Closed);
+        // No-Op
+        callback.closeComplete(ctx);
     }
 
     public void asyncDeleteCursor(final String consumerName, final DeleteCursorCallback callback, final Object ctx) {
